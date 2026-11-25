@@ -1,0 +1,40 @@
+name: Build Sahm for Windows
+
+on: [workflow_dispatch]
+
+permissions:
+  contents: read
+
+jobs:
+  install:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Arrange project files
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path lib, test, assets | Out-Null
+          Copy-Item -Path main.dart, finance.dart, store.dart -Destination lib
+          Copy-Item -Path finance_test.dart -Destination test
+          Copy-Item -Path font.ttf, intro.gif, app_icon.ico, FONT-LICENSE.txt -Destination assets
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          $env:Path += ";${env:ProgramFiles(x86)}\Inno Setup 6"
+          if (!(Get-Command ISCC.exe -ErrorAction SilentlyContinue)) {
+            choco install innosetup -y
+            if ($LASTEXITCODE -ne 0) { throw "Inno Setup installation failed" }
+          }
+          ./build-windows.ps1
+          if (!(Test-Path Output/Sahm-Setup.exe)) { throw "Missing installer" }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Sahm-Windows-x64
+          path: Output/Sahm-Setup.exe
